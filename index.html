@@ -16,7 +16,7 @@
     var arenaSlotCounter = 1;
     var definedSlots = [];
   
-    const globalTargeting = {
+    const pageTargeting = {
       site: 'reuters',
       section: 'world-news',
       userType: 'subscriber'
@@ -55,7 +55,7 @@
     }
   
     googletag.cmd.push(() => {
-      Object.entries(globalTargeting).forEach(([k, v]) => {
+      Object.entries(pageTargeting).forEach(([k, v]) => {
         googletag.pubads().setTargeting(k, v);
       });
   
