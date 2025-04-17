@@ -4,63 +4,120 @@
   <meta charset="UTF-8" />
   <title>Arena Custom Inventory Example</title>
   <script>
-    window.googletag = window.googletag || {cmd: []};
+    window.googletag = window.googletag || { cmd: [] };
   </script>
   <script async src="https://securepubads.g.doubleclick.net/tag/js/gpt.js"></script>
 </head>
 <body>
   <div class="arena-liveblog" data-publisher="arena-tur" data-event="hWGyknl" data-version="2"></div>
   <script async src="https://go-uat.arena.im/public/js/arenalib.js?p=arena-tur&e=hWGyknl"></script>
+
   <script>
     var arenaSlotCounter = 1;
-
+    var definedSlots = [];
+  
+    const globalTargeting = {
+      site: 'reuters',
+      section: 'world-news',
+      userType: 'subscriber'
+    };
+  
+    const slotTargetingMap = {
+      top: { position: 'top', size: 'leaderboard' },
+      feed: { position: 'feed', dynamic: 'true' },
+      bottom: { position: 'bottom', sticky: 'true' }
+    };
+  
+    function getSlotType(element) {
+      if (element.id === 'arena-slot-cust-top') return 'top';
+      if (element.classList.contains('arena-custom-inventory-slot-feed')) return 'feed';
+      if (element.id === 'arena-slot-cust-bottom') return 'bottom';
+      return null;
+    }
+  
     function defineAndDisplayAdSlot(slotElement) {
       if (!slotElement.id) {
         slotElement.id = 'arena-ad-slot-' + arenaSlotCounter++;
       }
-      googletag.defineSlot('/6355419/Travel/Europe/France', [[300, 250], [728, 90]], slotElement.id)
-               .addService(googletag.pubads());
+  
+      const slotType = getSlotType(slotElement);
+      const gptSlot = googletag.defineSlot('/6355419/Travel/Europe/France', [[300, 250], [728, 90]], slotElement.id)
+        .addService(googletag.pubads());
+  
+      if (slotType && slotTargetingMap[slotType]) {
+        const targeting = slotTargetingMap[slotType];
+        Object.entries(targeting).forEach(([k, v]) => gptSlot.setTargeting(k, v));
+      }
+  
+      definedSlots.push({ id: slotElement.id, slot: gptSlot });
       googletag.display(slotElement.id);
       console.log('Ad slot defined and displayed:', slotElement.id);
     }
-
-    googletag.cmd.push(function() {
-
+  
+    googletag.cmd.push(() => {
+      Object.entries(globalTargeting).forEach(([k, v]) => {
+        googletag.pubads().setTargeting(k, v);
+      });
+  
       googletag.pubads().enableLazyLoad({
         fetchMarginPercent: 200,
         renderMarginPercent: 50,
         mobileScaling: 2.0
       });
-
-      var initialSlots = document.querySelectorAll('.arena-custom-inventory-slot');
-      initialSlots.forEach(function(slotElement) {
-        defineAndDisplayAdSlot(slotElement);
-      });
-
+  
       googletag.enableServices();
+  
+      const initialSlots = document.querySelectorAll('.arena-custom-inventory-slot');
+      initialSlots.forEach(defineAndDisplayAdSlot);
     });
-
-    var observer = new MutationObserver(function(mutations) {
-      mutations.forEach(function(mutation) {
-        mutation.addedNodes.forEach(function(node) {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            if (node.classList.contains('arena-custom-inventory-slot')) {
-              googletag.cmd.push(function() {
-                defineAndDisplayAdSlot(node);
-              });
-            }
-            var newSlots = node.querySelectorAll ? node.querySelectorAll('.arena-custom-inventory-slot') : [];
-            newSlots.forEach(function(slotElement) {
-              googletag.cmd.push(function() {
-                defineAndDisplayAdSlot(slotElement);
-              });
-            });
+  
+    const observer = new MutationObserver(mutations => {
+      mutations.forEach(m => {
+        m.addedNodes.forEach(node => {
+          if (node.nodeType !== 1) return;
+  
+          if (node.classList.contains('arena-custom-inventory-slot')) {
+            googletag.cmd.push(() => defineAndDisplayAdSlot(node));
           }
+  
+          const nested = node.querySelectorAll?.('.arena-custom-inventory-slot') || [];
+          nested.forEach(el => googletag.cmd.push(() => defineAndDisplayAdSlot(el)));
         });
       });
     });
-
+  
     observer.observe(document.body, { childList: true, subtree: true });
+  
+    window.__ARENA_WIDGETS__ = window.__ARENA_WIDGETS__ || {};
+    window.__ARENA_WIDGETS__.customInventoryMethods = {
+      destroySlots() {
+        googletag.cmd.push(() => {
+          definedSlots.forEach(({ slot }) => googletag.destroySlots([slot]));
+          console.log('All slots destroyed.');
+          definedSlots = [];
+        });
+      },
+  
+      refreshSlots() {
+        googletag.cmd.push(() => {
+          const visibleSlotIds = definedSlots
+            .map(({ id, slot }) => {
+              const el = document.getElementById(id);
+              if (!el) return null;
+              const rect = el.getBoundingClientRect();
+              const visible = rect.top < window.innerHeight && rect.bottom > 0;
+              return visible ? slot : null;
+            })
+            .filter(Boolean);
+  
+          if (visibleSlotIds.length > 0) {
+            googletag.pubads().refresh(visibleSlotIds);
+            console.log('Refreshed visible slots:', visibleSlotIds.length);
+          }
+        });
+      }
+    };
   </script>
+  
 </body>
 </html>
